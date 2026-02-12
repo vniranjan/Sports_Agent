@@ -1,0 +1,18 @@
+# News source configurations
+cricket:
+  rss:
+    - name: ESPN Cricinfo
+      url: https://www.espncricinfo.com/rss/content/story/feeds/0.xml
+    - name: BBC Sport Cricket
+      url: https://feeds.bbci.co.uk/sport/cricket/rss.xml
+    - name: Cricbuzz
+      url: https://www.cricbuzz.com/feeds/news.xml
+  news_api_query: "cricket"
+
+soccer:
+  rss:
+    - name: ESPN Soccer
+      url: https://www.espn.com/espn/rss/soccer/news
+    - name: BBC Sport Football
+      url: https://feeds.bbci.co.uk/sport/football/rss.xml
+  news_api_query: "soccer OR football"

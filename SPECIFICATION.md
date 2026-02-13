@@ -6,10 +6,12 @@ A sports news aggregator website that collects top news stories for **cricket** 
 
 ## Tech Stack
 
-- **Agent Framework:** CrewAI
+- **Agent Pipeline:** Python (sequential pipeline with modular functions)
 - **Backend:** FastAPI
 - **Frontend:** Next.js
 - **Database:** PostgreSQL (or SQLite for initial development)
+- **Scheduling:** APScheduler (background job runner)
+- **LLM:** OpenAI GPT-4o-mini (for article summarization)
 - **Language:** Python 3.11+ (backend/agents), TypeScript (frontend)
 
 ## Sports Categories
@@ -20,11 +22,11 @@ A sports news aggregator website that collects top news stories for **cricket** 
 ## Core Features
 
 ### Phase 1: Agent Pipeline
-- CrewAI agents to search and assimilate news from multiple sources
+- Sequential Python pipeline to search and assimilate news from multiple RSS sources
 - Extract article content from URLs
-- Generate concise summaries (key takeaways) using LLM
-- Categorize articles by sport (cricket/soccer)
-- Deduplicate stories from multiple sources
+- Generate concise summaries (key takeaways) using OpenAI LLM
+- Categorize articles by sport (cricket/soccer) using rule-based classification
+- Deduplicate stories by source URL
 - Store structured data: sport, headline, summary, source URL, source name, published date
 
 ### Phase 2: Backend API
@@ -33,7 +35,7 @@ A sports news aggregator website that collects top news stories for **cricket** 
   - `GET /api/articles` - List articles (with filters: sport, date range)
   - `GET /api/articles/{id}` - Get single article details
 - Database models for sports and articles
-- Scheduled job runner (cron/Celery) to execute agent pipeline periodically
+- APScheduler background job to execute agent pipeline periodically (default: every 5 hours)
 
 ### Phase 3: Frontend
 - Home page with sport category navigation
@@ -58,40 +60,47 @@ A sports news aggregator website that collects top news stories for **cricket** 
 - `sport_id` (foreign key)
 - `headline` (string)
 - `summary` (text - AI-generated key takeaways)
-- `source_url` (string)
+- `source_url` (string, unique)
 - `source_name` (string)
 - `published_at` (datetime)
 - `created_at` (datetime)
 - `updated_at` (datetime)
 
-## Agent Architecture (CrewAI)
+## Agent Architecture
 
-### Agent Roles
+The agent pipeline is a sequential Python workflow composed of modular functions. Each stage processes data and passes results to the next.
 
-1. **News Researcher Agent**
-   - Searches for news articles from configured sources
-   - Filters by sport category and relevance
-   - Returns candidate URLs and metadata
+### Pipeline Stages
 
-2. **Content Extractor Agent**
+1. **News Researcher** (`fetch_candidates_from_sources`)
+   - Parses RSS feeds from configured sources
+   - Collects candidate article URLs and metadata
+   - Limits to 15 items per feed
+
+2. **Content Extractor** (`extract_content`)
    - Fetches full article content from URLs
-   - Cleans and normalizes text
-   - Handles different source formats
+   - Cleans and normalizes text using BeautifulSoup
+   - Truncates to 8000 characters
 
-3. **Summarizer Agent**
-   - Analyzes article content
-   - Generates concise summaries highlighting key takeaways
-   - Ensures summaries are informative and non-redundant
+3. **Summarizer** (`summarize_with_llm`)
+   - Generates 2-4 sentence summaries via OpenAI GPT-4o-mini
+   - Highlights key takeaways
 
-4. **Categorizer Agent** (optional, can be rule-based)
-   - Confirms sport category assignment
+4. **Categorizer** (`categorize_sport`)
+   - Rule-based sport classification using keyword matching
    - Handles edge cases where sport might be ambiguous
 
-### Tools Required
-- RSS feed parser
-- Web scraping/content extraction (e.g., `readability-lxml`, `newspaper3k`)
-- News API clients (e.g., News API, GNews)
-- LLM API client (OpenAI, Anthropic, or local model)
+### Pipeline Orchestration (`run_pipeline`)
+- Loads RSS source configuration from `sources.yaml`
+- Executes stages sequentially: fetch → extract → summarize → categorize
+- Deduplicates articles by `source_url`
+- Persists results to database via SQLAlchemy
+
+### Tools & Libraries
+- `feedparser` - RSS feed parsing
+- `beautifulsoup4` - Web scraping and content extraction
+- `requests` - HTTP client
+- `openai` - LLM API client for summarization
 
 ## News Sources
 
@@ -99,13 +108,10 @@ A sports news aggregator website that collects top news stories for **cricket** 
 - ESPN Cricinfo RSS
 - BBC Sport Cricket RSS
 - Cricbuzz RSS
-- News API searches for "cricket"
 
 ### Soccer
 - ESPN Soccer RSS
 - BBC Sport Football RSS
-- The Athletic RSS (if available)
-- News API searches for "soccer" OR "football"
 
 ## Project Structure
 
@@ -113,92 +119,97 @@ A sports news aggregator website that collects top news stories for **cricket** 
 sports-news-website/
 ├── agent/
 │   ├── crew/
-│   │   ├── agents.py          # CrewAI agent definitions
-│   │   ├── tasks.py            # Task definitions
-│   │   ├── tools.py            # Custom tools (RSS, scraping, etc.)
-│   │   └── crew.py             # Crew orchestration
+│   │   ├── agents.py          # Pipeline stage functions
+│   │   ├── tools.py           # RSS parsing, content extraction utilities
+│   │   └── crew.py            # Pipeline orchestration and DB persistence
 │   ├── config/
-│   │   └── sources.yaml        # News source configurations
-│   └── main.py                 # Entry point for agent pipeline
+│   │   └── sources.yaml       # RSS source configurations
+│   └── main.py                # Entry point for agent pipeline
 ├── backend/
 │   ├── app/
 │   │   ├── __init__.py
-│   │   ├── main.py             # FastAPI app
-│   │   ├── models.py           # SQLAlchemy models
-│   │   ├── schemas.py          # Pydantic schemas
-│   │   ├── database.py         # DB connection
+│   │   ├── main.py            # FastAPI app, CORS, startup events
+│   │   ├── models.py          # SQLAlchemy models
+│   │   ├── schemas.py         # Pydantic schemas
+│   │   ├── database.py        # DB connection and initialization
+│   │   ├── seed.py            # Database seeding (cricket, soccer)
+│   │   ├── scheduler.py       # APScheduler background job runner
 │   │   └── api/
 │   │       ├── __init__.py
-│   │       ├── sports.py       # Sports endpoints
-│   │       └── articles.py     # Articles endpoints
-│   ├── requirements.txt
-│   └── .env.example
+│   │       ├── sports.py      # Sports endpoints
+│   │       └── articles.py    # Articles endpoints
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── frontend/
-│   ├── app/                    # Next.js app directory
+│   ├── app/                   # Next.js app directory
 │   │   ├── layout.tsx
-│   │   ├── page.tsx            # Home page
-│   │   ├── [sport]/
-│   │   │   └── page.tsx        # Sport-specific page
-│   │   └── api/                # API route handlers (if needed)
+│   │   ├── page.tsx           # Home page
+│   │   └── [sport]/
+│   │       └── page.tsx       # Sport-specific page
 │   ├── components/
 │   │   ├── SportNav.tsx
 │   │   ├── ArticleCard.tsx
 │   │   └── ArticleList.tsx
 │   ├── lib/
-│   │   └── api.ts              # API client functions
+│   │   └── api.ts             # API client functions
+│   ├── Dockerfile
 │   ├── package.json
 │   └── tsconfig.json
+├── scripts/
+│   └── sync-env.sh            # Copies NEXT_PUBLIC_* vars to frontend/.env.local
+├── .env.example
 ├── .gitignore
 ├── README.md
 ├── SPECIFICATION.md            # This file
-└── docker-compose.yml          # Optional: for local dev setup
+└── docker-compose.yml
 ```
 
 ## Environment Variables
 
 ### Backend/Agent
-- `DATABASE_URL` - PostgreSQL connection string
-- `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`) - LLM API key
-- `NEWS_API_KEY` - News API key (if using News API)
-- `LOG_LEVEL` - Logging level
+- `DATABASE_URL` - Database connection string (defaults to SQLite)
+- `OPENAI_API_KEY` - OpenAI API key (required for summarization)
+- `LOG_LEVEL` - Logging level (default: INFO)
+- `PIPELINE_INTERVAL_HOURS` - Agent pipeline run interval (default: 5)
+- `DISABLE_SCHEDULER` - Set to disable background scheduling
 
 ### Frontend
-- `NEXT_PUBLIC_API_URL` - Backend API URL
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8000)
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1)
-- [ ] Set up project structure
-- [ ] Initialize database with sports table (cricket, soccer)
-- [ ] Create basic FastAPI app with health check
-- [ ] Set up CrewAI environment and basic agent structure
+### Phase 1: Foundation
+- [x] Set up project structure
+- [x] Initialize database with sports table (cricket, soccer)
+- [x] Create FastAPI app with health check
+- [x] Set up agent pipeline structure
 
-### Phase 2: Agent Pipeline (Week 2)
-- [ ] Implement News Researcher Agent with RSS/API tools
-- [ ] Implement Content Extractor Agent
-- [ ] Implement Summarizer Agent
-- [ ] Create Crew orchestration
-- [ ] Test end-to-end: one sport → articles → summaries → DB
+### Phase 2: Agent Pipeline
+- [x] Implement news researcher with RSS tools
+- [x] Implement content extractor
+- [x] Implement LLM summarizer
+- [x] Create pipeline orchestration
+- [x] Test end-to-end: sources → articles → summaries → DB
 
-### Phase 3: Backend API (Week 3)
-- [ ] Create article database models
-- [ ] Implement `/api/sports` endpoint
-- [ ] Implement `/api/articles` endpoint with filters
-- [ ] Add deduplication logic
-- [ ] Set up scheduled job runner (cron or Celery)
+### Phase 3: Backend API
+- [x] Create article database models
+- [x] Implement `/api/sports` endpoint
+- [x] Implement `/api/articles` endpoint with filters
+- [x] Add deduplication logic
+- [x] Set up APScheduler background job runner
 
-### Phase 4: Frontend (Week 4)
-- [ ] Set up Next.js project
-- [ ] Create home page with sport navigation
-- [ ] Create sport-specific article listing pages
-- [ ] Implement API client
-- [ ] Add responsive styling
+### Phase 4: Frontend
+- [x] Set up Next.js project
+- [x] Create home page with sport navigation
+- [x] Create sport-specific article listing pages
+- [x] Implement API client
+- [x] Add responsive styling with Tailwind CSS
 
-### Phase 5: Polish & Deploy (Week 5)
-- [ ] Error handling and logging
+### Phase 5: Polish & Deploy
+- [x] Error handling and logging
+- [x] Docker and Docker Compose setup
 - [ ] Caching strategy
 - [ ] Performance optimization
-- [ ] Deployment setup (Docker, cloud platform)
 
 ## Success Criteria
 
@@ -206,11 +217,12 @@ sports-news-website/
 - Summaries are concise (2-4 sentences) and capture key takeaways
 - Articles are correctly categorized by sport
 - Frontend displays articles organized by sport with clean UI
-- System runs automatically on schedule (every 4-6 hours)
+- System runs automatically on schedule (every 5 hours)
 - No duplicate articles shown to users
 
 ## Future Enhancements (Post-MVP)
 
+- News API integration for broader source coverage
 - Add more sports categories
 - User preferences/favorites
 - Search functionality
@@ -221,5 +233,5 @@ sports-news-website/
 
 ---
 
-**Created:** February 10, 2026  
-**Last Updated:** February 10, 2026
+**Created:** February 10, 2026
+**Last Updated:** February 12, 2026

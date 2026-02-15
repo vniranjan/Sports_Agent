@@ -3,9 +3,10 @@ import type { Article } from "@/lib/api";
 
 interface ArticleListProps {
   articles: Article[];
+  showSportTag?: boolean;
 }
 
-export default function ArticleList({ articles }: ArticleListProps) {
+export default function ArticleList({ articles, showSportTag }: ArticleListProps) {
   if (articles.length === 0) {
     return (
       <p className="text-gray-500 py-8 text-center">
@@ -17,7 +18,7 @@ export default function ArticleList({ articles }: ArticleListProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {articles.map((article) => (
-        <ArticleCard key={article.id} article={article} />
+        <ArticleCard key={article.id} article={article} showSportTag={showSportTag} />
       ))}
     </div>
   );

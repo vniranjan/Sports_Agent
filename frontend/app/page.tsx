@@ -1,16 +1,21 @@
-import Link from "next/link";
-import { getSports } from "@/lib/api";
+import { getArticles, getSports } from "@/lib/api";
 import SportNav from "@/components/SportNav";
+import ArticleList from "@/components/ArticleList";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  let sports;
+  let sports: Awaited<ReturnType<typeof getSports>> = [];
+  let articles: Awaited<ReturnType<typeof getArticles>> = [];
   try {
-    sports = await getSports();
-  } catch (e) {
-    sports = [];
+    [sports, articles] = await Promise.all([
+      getSports(),
+      getArticles(),
+    ]);
+  } catch {
+    // API may be unreachable
   }
+
   return (
     <div>
       <header className="mb-8">
@@ -18,19 +23,7 @@ export default async function HomePage() {
         <p className="text-gray-600 mt-1">Cricket and Soccer headlines with AI summaries</p>
       </header>
       <SportNav sports={sports} />
-      <div className="space-y-4">
-        <p className="text-gray-600">
-          Select a sport above or browse{" "}
-          <Link href="/cricket" className="text-blue-600 hover:underline">
-            Cricket
-          </Link>{" "}
-          and{" "}
-          <Link href="/soccer" className="text-blue-600 hover:underline">
-            Soccer
-          </Link>{" "}
-          articles.
-        </p>
-      </div>
+      <ArticleList articles={articles} showSportTag />
     </div>
   );
 }

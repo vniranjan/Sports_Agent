@@ -1,14 +1,8 @@
-interface Article {
-  id: number;
-  headline: string;
-  summary: string;
-  source_url: string;
-  source_name: string;
-  published_at: string | null;
-}
+import type { Article } from "@/lib/api";
 
 interface ArticleCardProps {
   article: Article;
+  showSportTag?: boolean;
 }
 
 function formatDate(iso: string | null): string {
@@ -24,10 +18,17 @@ function formatDate(iso: string | null): string {
   }
 }
 
-export default function ArticleCard({ article }: ArticleCardProps) {
+export default function ArticleCard({ article, showSportTag }: ArticleCardProps) {
   return (
     <article className="border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
-      <h2 className="text-lg font-semibold mb-2">{article.headline}</h2>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h2 className="text-lg font-semibold">{article.headline}</h2>
+        {showSportTag && article.sport && (
+          <span className="shrink-0 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+            {article.sport.name}
+          </span>
+        )}
+      </div>
       <p className="text-gray-600 text-sm mb-4">{article.summary}</p>
       <footer className="flex items-center justify-between text-sm text-gray-500">
         <a

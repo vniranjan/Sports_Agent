@@ -62,10 +62,27 @@ def summarize_with_llm(content: str, headline: str) -> str:
 
 
 def categorize_sport(headline: str, content: str, candidate_sport: str) -> str:
-    """Categorizer: confirm or correct sport (cricket vs soccer)."""
-    text = (headline + " " + content).lower()
-    if "cricket" in text or "cricinfo" in text or "cricbuzz" in text or "ipl" in text:
+    """Categorizer: confirm or correct sport (cricket vs soccer).
+
+    Uses the headline for classification since full page content often
+    contains site-wide navigation links for other sports, leading to
+    false positives.  Falls back to the RSS source's sport tag.
+    """
+    headline_lower = headline.lower()
+
+    cricket_keywords = ["cricket", "cricinfo", "cricbuzz", "ipl", "t20", "test match",
+                        "odi", "wicket", "batsman", "bowler", "innings"]
+    soccer_keywords = ["soccer", "football", "premier league", "fifa", "la liga",
+                       "champions league", "serie a", "bundesliga", "mls",
+                       "goal scorer", "penalty kick"]
+
+    cricket_score = sum(1 for kw in cricket_keywords if kw in headline_lower)
+    soccer_score = sum(1 for kw in soccer_keywords if kw in headline_lower)
+
+    if cricket_score > soccer_score:
         return "cricket"
-    if "football" in text or "soccer" in text or "premier league" in text or "fifa" in text:
+    if soccer_score > cricket_score:
         return "soccer"
+
+    # No clear signal from headline — trust the RSS source tag
     return candidate_sport

@@ -16,8 +16,8 @@ if str(_root / "backend") not in sys.path:
 def run_agent_pipeline():
     """Job: run the agent pipeline."""
     try:
-        from agent.crew.crew import run_pipeline
-        saved = run_pipeline()
+        from agent.crew.crew import run_pipeline_sync
+        saved = run_pipeline_sync()
         print(f"Scheduled pipeline: saved {saved} articles")
     except Exception as e:
         print(f"Scheduled pipeline error: {e}")

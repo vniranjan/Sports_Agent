@@ -1,88 +1,59 @@
-"""Agent logic for research, extraction, summarization, and categorization."""
-import os
-from typing import Optional
+"""Agent definitions for the sports news pipeline using OpenAI Agents SDK."""
+from agents import Agent, ModelSettings
 
-from openai import OpenAI
+from agent.crew.models import (
+    CategorizedArticle,
+    DiscoveryResult,
+    SummarizedArticle,
+)
+from agent.crew.tools import fetch_rss_feeds
 
-from agent.crew.tools import extract_article_content, parse_rss_feed
+_model = "gpt-4o-mini"
 
+source_discovery_agent = Agent(
+    name="Source Discovery Agent",
+    instructions=(
+        "You are a sports news source discovery agent. "
+        "Use the fetch_rss_feeds tool to retrieve article candidates from configured RSS feeds. "
+        "Parse the JSON result and return ALL candidates as a structured DiscoveryResult. "
+        "Do not filter or remove any candidates."
+    ),
+    model=_model,
+    model_settings=ModelSettings(temperature=0.2),
+    tools=[fetch_rss_feeds],
+    output_type=DiscoveryResult,
+)
 
-def fetch_candidates_from_sources(sources_config: dict) -> list[dict]:
-    """News Researcher: collect candidate articles from RSS sources."""
-    candidates = []
-    seen_urls = set()
+summarization_agent = Agent(
+    name="Summarization Agent",
+    instructions=(
+        "You are a sports news summarizer. "
+        "Given a headline and article content, produce a 2-4 sentence summary "
+        "highlighting the key takeaways. Be concise, informative, and avoid redundancy. "
+        "Return the result as a structured SummarizedArticle with the original headline "
+        "and your generated summary."
+    ),
+    model=_model,
+    model_settings=ModelSettings(temperature=0.3),
+    tools=[],
+    output_type=SummarizedArticle,
+)
 
-    for sport_slug, config in sources_config.items():
-        for rss_source in config.get("rss", []):
-            items = parse_rss_feed(
-                rss_source["url"],
-                rss_source["name"],
-                sport_slug,
-            )
-            for item in items:
-                url = item.get("url", "")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    candidates.append(item)
-
-    return candidates
-
-
-def extract_content(url: str) -> Optional[str]:
-    """Content Extractor: fetch and clean article text."""
-    return extract_article_content(url)
-
-
-def summarize_with_llm(content: str, headline: str) -> str:
-    """Summarizer: generate 2-4 sentence summary via LLM."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return f"Summary unavailable (no API key). Key points from: {headline}"
-
-    try:
-        client = OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a sports news summarizer. Produce 2-4 concise sentences highlighting the key takeaways. Be informative and avoid redundancy.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Headline: {headline}\n\nArticle excerpt:\n{content[:4000]}",
-                },
-            ],
-            max_tokens=200,
-        )
-        summary = resp.choices[0].message.content
-        return summary.strip() if summary else headline
-    except Exception:
-        return headline
-
-
-def categorize_sport(headline: str, content: str, candidate_sport: str) -> str:
-    """Categorizer: confirm or correct sport (cricket vs soccer).
-
-    Uses the headline for classification since full page content often
-    contains site-wide navigation links for other sports, leading to
-    false positives.  Falls back to the RSS source's sport tag.
-    """
-    headline_lower = headline.lower()
-
-    cricket_keywords = ["cricket", "cricinfo", "cricbuzz", "ipl", "t20", "test match",
-                        "odi", "wicket", "batsman", "bowler", "innings"]
-    soccer_keywords = ["soccer", "football", "premier league", "fifa", "la liga",
-                       "champions league", "serie a", "bundesliga", "mls",
-                       "goal scorer", "penalty kick"]
-
-    cricket_score = sum(1 for kw in cricket_keywords if kw in headline_lower)
-    soccer_score = sum(1 for kw in soccer_keywords if kw in headline_lower)
-
-    if cricket_score > soccer_score:
-        return "cricket"
-    if soccer_score > cricket_score:
-        return "soccer"
-
-    # No clear signal from headline — trust the RSS source tag
-    return candidate_sport
+categorization_agent = Agent(
+    name="Categorization Agent",
+    instructions=(
+        "You are a sports article categorization agent. "
+        "Given a headline, summary, and candidate sport, determine the correct sport category. "
+        "Valid sport slugs are: 'cricket', 'soccer'. "
+        "Cricket articles discuss cricket, IPL, T20, test matches, "
+        "wickets, batsmen, bowlers, innings, etc. "
+        "Soccer articles discuss football, Premier League, "
+        "FIFA, La Liga, Champions League, Serie A, Bundesliga, MLS, goals, penalties, etc. "
+        "Analyze the content carefully and return your categorization "
+        "with a confidence level (low/medium/high) and brief reasoning."
+    ),
+    model=_model,
+    model_settings=ModelSettings(temperature=0.1),
+    tools=[],
+    output_type=CategorizedArticle,
+)

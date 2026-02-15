@@ -1,4 +1,6 @@
 """Entry point for agent pipeline."""
+import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -10,9 +12,16 @@ if str(_root) not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(_root / ".env")
 
+# Configure logging so agent progress is visible
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+
 from agent.crew.crew import run_pipeline
 
 
 if __name__ == "__main__":
-    saved = run_pipeline()
-    print(f"Pipeline complete. Saved {saved} new articles.")
+    saved = asyncio.run(run_pipeline())
+    print(f"\nPipeline complete. Saved {saved} new articles.")

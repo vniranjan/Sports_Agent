@@ -11,7 +11,8 @@ load_dotenv(_root / ".env")
 
 import os
 
-_default_db = f"sqlite:///{_root / 'sports_news.db'}"
+_db_path = (_root / "sports_news.db").resolve()
+_default_db = f"sqlite:///{_db_path}"
 DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 

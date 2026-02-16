@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "sync-env": "bash ../scripts/sync-env.sh",
-    "build": "npm run sync-env && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
